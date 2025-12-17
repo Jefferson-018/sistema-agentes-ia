@@ -1,0 +1,18 @@
+.container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: 'Segoe UI', sans-serif; }
+.status-bar { background: #333; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+
+/* Formulário */
+.form-section { background: #e3f2fd; border: 2px solid #2196f3; }
+input, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
+textarea { height: 80px; }
+button { background: #2196f3; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
+button:hover { background: #1976d2; }
+.btn-refresh { background: #666; margin-bottom: 20px; width: auto; }
+
+/* Cards */
+.card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; color: #333; }
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.badge { padding: 5px 10px; border-radius: 12px; font-size: 0.8em; font-weight: bold; }
+.badge.PENDENTE { background: #fff3cd; color: #856404; }
+.badge.CONCLUÍDO { background: #d4edda; color: #155724; }
+.box-resultado { background: #f8f9fa; padding: 10px; margin-top: 10px; border-left: 4px solid #2196f3; }
