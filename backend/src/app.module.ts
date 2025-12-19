@@ -8,17 +8,19 @@ import { Workflow } from './workflows/entities/workflow.entity';
 
 @Module({
   imports: [
-    // A MUDANÇA É AQUI: Adicione { isGlobal: true }
     ConfigModule.forRoot({
       isGlobal: true, 
     }), 
     
     WorkflowsModule,
+
+    // --- CONEXÃO COM O NEON (POSTGRESQL) ---
     TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: 'database.sqlite',
+      type: 'postgres', // Mudamos de 'sqlite' para 'postgres'
+      url: 'postgresql://neondb_owner:npg_XiVTZ6JzK5aR@ep-falling-fire-a4zgk00p-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require', // Sua Chave do Neon
       entities: [Workflow],
-      synchronize: true,
+      synchronize: true, // Cria as tabelas automaticamente na nuvem
+      ssl: { rejectUnauthorized: false }, // Obrigatório para aceitar a conexão segura do Neon
     }),
   ],
   controllers: [AppController],

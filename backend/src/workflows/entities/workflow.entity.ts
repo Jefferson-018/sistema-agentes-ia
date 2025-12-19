@@ -1,22 +1,24 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
-@Entity() // Isso diz: "Crie uma tabela para essa classe"
+@Entity()
 export class Workflow {
-  @PrimaryGeneratedColumn('uuid') // Gera IDs únicos (ex: a1b2-c3d4...)
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column()
-  nome: string;
+  name: string;
 
-  @Column()
-  status: string; // PENDENTE, CONCLUÍDO
+  @Column('simple-json') // SQLite e Postgres aceitam simple-json para listas
+  steps: string[];
 
-  @Column('simple-array', { nullable: true })
-  steps: string[]; // Salva a lista ["Agente A", "Agente B"]
+  @Column({ default: 'PENDENTE' })
+  status: string;
 
-  @Column({ nullable: true })
-  resultado: string; // O texto final da IA
+  @Column({ type: 'text', nullable: true })
+  resultado: string;
 
-  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  // --- AQUI ESTAVA O ERRO ---
+  // O Postgres prefere 'timestamp' em vez de 'datetime'
+  @CreateDateColumn({ type: 'timestamp' }) 
   dataCriacao: Date;
 }
