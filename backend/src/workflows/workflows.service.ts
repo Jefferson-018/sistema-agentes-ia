@@ -10,7 +10,7 @@ export class WorkflowsService {
     private workflowsRepository: Repository<Workflow>,
   ) {}
 
-  // 1. CRIA O AGENTE E CHAMA A IA
+  // 1. CRIA O AGENTE
   async create(createWorkflowDto: any) {
     const workflow = this.workflowsRepository.create({
       ...createWorkflowDto,
@@ -18,8 +18,7 @@ export class WorkflowsService {
       resultado: 'Iniciando processamento inteligente...',
     });
 
-    // --- A CORREÇÃO ESTÁ AQUI 👇 ---
-    // Adicionamos 'as any' para garantir que o TypeScript entenda que é um objeto único
+    // Salva o status inicial no banco
     const salvo = await this.workflowsRepository.save(workflow) as any;
     
     // Chama a função que processa (em segundo plano)
@@ -28,37 +27,26 @@ export class WorkflowsService {
     return salvo;
   }
 
-  // 2. O CÉREBRO (Conexão Direta e Robusta)
+  // 2. O CÉREBRO (IA - Versão Blindada)
   async processarComHttpBruto(id: number, tarefas: string[]) {
-    // 🔒 Pega a chave do ambiente (Render)
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // Se não tiver chave, nem tenta conectar
     if (!apiKey) {
-        console.error("❌ ERRO: Chave GEMINI_API_KEY não encontrada!");
-        return this.gravarErro(id, "Chave de API não configurada.");
+        console.error("❌ ERRO: Chave GEMINI_API_KEY não configurada no Render!");
+        return this.gravarErro(id, "Erro de Configuração: Chave de API ausente.");
     }
 
-    // Lista de modelos para tentar (do mais novo ao mais clássico)
-    const modelosParaTentar = [
-      "gemini-1.5-flash",
-      "gemini-1.5-pro",
-      "gemini-pro"
-    ];
+    // 🔥 MODELO ÚNICO E DEFINITIVO (O mais rápido e estável)
+    const modelo = "gemini-1.5-flash"; 
 
-    let sucesso = false;
-    let ultimoErro = "";
-
-    const prompt = `Você é um assistente executivo altamente eficiente.
-    Tarefas solicitadas: ${tarefas.join('. ')}.
+    const prompt = `Você é um assistente executivo focado e eficiente.
+    Tarefas: ${tarefas.join('. ')}.
     
-    Instrução: Responda de forma direta, profissional e estruturada em Português do Brasil. Use Markdown para formatar.`;
+    Instrução: Responda em Português do Brasil. Use Markdown (negrito, listas) para formatar bem a resposta.`;
 
-    // Loop de Tentativas
-    for (const modelo of modelosParaTentar) {
-      if (sucesso) break;
-
-      try {
-        console.log(`🚀 Tentando modelo: ${modelo}...`);
+    try {
+        console.log(`🚀 Iniciando processamento com ${modelo}...`);
         
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`;
 
@@ -72,49 +60,56 @@ export class WorkflowsService {
 
         const data = await response.json();
 
+        // Se o Google reclamar, pegamos o erro aqui
         if (data.error) {
-          throw new Error(data.error.message);
+          throw new Error(`Erro da API do Google: ${data.error.message}`);
         }
 
-        const textoFinal = data.candidates?.[0]?.content?.parts?.[0]?.text || 'IA não retornou texto.';
+        const textoFinal = data.candidates?.[0]?.content?.parts?.[0]?.text;
         
-        // Atualiza o banco com o Sucesso
+        if (!textoFinal) {
+             throw new Error("A IA respondeu, mas o texto veio vazio.");
+        }
+
+        // SUCESSO! Salva no banco
         await this.workflowsRepository.update(id, {
           status: 'CONCLUÍDO',
           resultado: textoFinal,
         });
         
-        sucesso = true;
-        console.log(`✅ SUCESSO com ${modelo}!`);
+        console.log(`✅ SUCESSO TOTAL! Agente ${id} finalizado.`);
 
-      } catch (erro: any) {
-        console.error(`❌ Falha no ${modelo}:`, erro.message);
-        ultimoErro = erro.message;
-      }
-    }
-
-    // Se ninguém funcionou
-    if (!sucesso) {
-      await this.gravarErro(id, ultimoErro);
+    } catch (erro: any) {
+        console.error(`❌ ERRO FATAL no Agente ${id}:`, erro.message);
+        await this.gravarErro(id, erro.message);
     }
   }
 
-  // Auxiliar para gravar erro
+  // Grava o erro no banco para aparecer no Frontend
   private async gravarErro(id: number, erro: string) {
     await this.workflowsRepository.update(id, {
         status: 'ERRO',
-        resultado: `Falha ao processar. Motivo: ${erro}`,
+        resultado: `Ops! Algo deu errado: ${erro}`,
       });
   }
 
-  // 3. LISTA TODOS
+  // 3. LISTA TODOS OS PROJETOS
   findAll() {
     return this.workflowsRepository.find();
   }
 
-  // 4. EXCLUI
+  // 4. EXCLUI (Necessário para o botão de lixeira funcionar)
   async remove(id: number) {
     if (!id || isNaN(id)) return; 
     await this.workflowsRepository.delete(id);
+  }
+
+  // Métodos auxiliares necessários para o Controller
+  findOne(id: number) {
+    return this.workflowsRepository.findOneBy({ id });
+  }
+
+  update(id: number, updateDto: any) {
+    return this.workflowsRepository.update(id, updateDto);
   }
 }
