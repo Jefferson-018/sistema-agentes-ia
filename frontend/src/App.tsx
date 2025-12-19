@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Trash2, Plus, Bot, CheckCircle, AlertCircle, Loader2, RefreshCw, LogOut } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { auth } from './firebaseConfig'; // Importa o Firebase
-import { onAuthStateChanged, signOut } from 'firebase/auth'; // Ferramentas de Auth
-import Login from './Login'; // Importa a tela que acabamos de criar
+import { auth } from './firebaseConfig';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import Login from './Login';
 
 interface Workflow {
   id: number;
@@ -33,11 +33,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Busca dados (Só roda se tiver usuário)
+  // 2. Busca dados (Agora no Servidor da Nuvem)
   const carregarDados = async () => {
-    if (!user) return; // Se não tiver logado, não busca nada
+    if (!user) return;
     try {
-      const response = await axios.get('http://localhost:3000/workflows');
+      // LINK ATUALIZADO AQUI 👇
+      const response = await axios.get('https://sistema-agentes-ia-3es4.onrender.com/workflows');
       setWorkflows(response.data.reverse());
     } catch (error) {
       console.error('Erro ao buscar:', error);
@@ -58,7 +59,8 @@ export default function App() {
     if (!nome || !tarefas) return alert('Preencha tudo!');
     setLoading(true);
     try {
-      await axios.post('http://localhost:3000/workflows', {
+      // LINK ATUALIZADO AQUI 👇
+      await axios.post('https://sistema-agentes-ia-3es4.onrender.com/workflows', {
         name: nome,
         steps: [tarefas]
       });
@@ -75,7 +77,8 @@ export default function App() {
   const excluir = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir?')) return;
     try {
-      await axios.delete(`http://localhost:3000/workflows/${id}`);
+      // LINK ATUALIZADO AQUI 👇
+      await axios.delete(`https://sistema-agentes-ia-3es4.onrender.com/workflows/${id}`);
       carregarDados();
     } catch (error) {
       console.error('Erro ao excluir', error);
@@ -88,13 +91,10 @@ export default function App() {
 
   // --- RENDERIZAÇÃO CONDICIONAL ---
 
-  // 1. Se estiver verificando o login, mostra carregando
   if (authLoading) return <div className="h-screen bg-slate-900 flex items-center justify-center text-white"><Loader2 className="animate-spin" size={40}/></div>;
 
-  // 2. Se NÃO tiver usuário, mostra a tela de Login
   if (!user) return <Login />;
 
-  // 3. Se tiver usuário, mostra o Dashboard (Código original)
   const total = workflows.length;
   const concluidos = workflows.filter(w => w.status === 'CONCLUÍDO').length;
   const pendentes = workflows.filter(w => w.status === 'PENDENTE').length;
@@ -109,7 +109,7 @@ export default function App() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
               Nexus AI Dashboard
             </h1>
-            <p className="text-slate-400 mt-1">Olá, {user.email}</p> {/* Mostra o email do usuário */}
+            <p className="text-slate-400 mt-1">Olá, {user.email}</p>
           </div>
           <div className="flex gap-2">
             <button 
