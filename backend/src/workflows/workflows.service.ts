@@ -18,7 +18,8 @@ export class WorkflowsService {
       resultado: 'Iniciando processamento inteligente...',
     });
 
-    // Salva o status inicial no banco
+    // --- A CORREÇÃO ESTÁ AQUI 👇 ---
+    // Adicionamos 'as any' para garantir que o TypeScript entenda que é um objeto único
     const salvo = await this.workflowsRepository.save(workflow) as any;
     
     // Chama a função que processa (em segundo plano)
@@ -27,16 +28,21 @@ export class WorkflowsService {
     return salvo;
   }
 
-  // 2. O CÉREBRO (Conecta com o Google)
+  // 2. O CÉREBRO (Conexão Direta e Robusta)
   async processarComHttpBruto(id: number, tarefas: string[]) {
-    const apiKey = 'AIzaSyBKf0fsDpO27VOKhr-Q_sKCm2V9tgUyOkM'; // Sua chave de API
+    // 🔒 Pega a chave do ambiente (Render)
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    // Lista de modelos poderosos que sua conta tem acesso
+    if (!apiKey) {
+        console.error("❌ ERRO: Chave GEMINI_API_KEY não encontrada!");
+        return this.gravarErro(id, "Chave de API não configurada.");
+    }
+
+    // Lista de modelos para tentar (do mais novo ao mais clássico)
     const modelosParaTentar = [
-      "gemini-2.5-flash",        // O mais novo e rápido
-      "gemini-2.0-flash",        // Versão 2.0 estável
-      "gemini-exp-1206",         // Experimental
-      "gemini-1.5-flash"         // Clássico (backup)
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
+      "gemini-pro"
     ];
 
     let sucesso = false;
@@ -45,9 +51,9 @@ export class WorkflowsService {
     const prompt = `Você é um assistente executivo altamente eficiente.
     Tarefas solicitadas: ${tarefas.join('. ')}.
     
-    Instrução: Responda de forma direta, profissional e estruturada em Português do Brasil.`;
+    Instrução: Responda de forma direta, profissional e estruturada em Português do Brasil. Use Markdown para formatar.`;
 
-    // Loop de Tentativas (Se um falhar, tenta o próximo)
+    // Loop de Tentativas
     for (const modelo of modelosParaTentar) {
       if (sucesso) break;
 
@@ -70,7 +76,7 @@ export class WorkflowsService {
           throw new Error(data.error.message);
         }
 
-        const textoFinal = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem texto na resposta.';
+        const textoFinal = data.candidates?.[0]?.content?.parts?.[0]?.text || 'IA não retornou texto.';
         
         // Atualiza o banco com o Sucesso
         await this.workflowsRepository.update(id, {
@@ -79,7 +85,7 @@ export class WorkflowsService {
         });
         
         sucesso = true;
-        console.log(`✅ SUCESSO ABSOLUTO com ${modelo}!`);
+        console.log(`✅ SUCESSO com ${modelo}!`);
 
       } catch (erro: any) {
         console.error(`❌ Falha no ${modelo}:`, erro.message);
@@ -89,26 +95,26 @@ export class WorkflowsService {
 
     // Se ninguém funcionou
     if (!sucesso) {
-      await this.workflowsRepository.update(id, {
-        status: 'ERRO',
-        resultado: `Falha ao processar. Último erro: ${ultimoErro}`,
-      });
+      await this.gravarErro(id, ultimoErro);
     }
   }
 
-  // 3. LISTA TODOS OS PROJETOS
+  // Auxiliar para gravar erro
+  private async gravarErro(id: number, erro: string) {
+    await this.workflowsRepository.update(id, {
+        status: 'ERRO',
+        resultado: `Falha ao processar. Motivo: ${erro}`,
+      });
+  }
+
+  // 3. LISTA TODOS
   findAll() {
     return this.workflowsRepository.find();
   }
 
-  // 4. EXCLUI (COM PROTEÇÃO ANTI-ERRO)
+  // 4. EXCLUI
   async remove(id: number) {
-    // Blindagem: Se o ID for inválido (NaN), ignora e não quebra o servidor
-    if (!id || isNaN(id)) {
-      console.log('Tentativa de excluir ID inválido ignorada.');
-      return; 
-    }
-    
+    if (!id || isNaN(id)) return; 
     await this.workflowsRepository.delete(id);
   }
 }
