@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Trash2, Plus, Bot, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, Bot, CheckCircle, AlertCircle, Loader2, RefreshCw, LogOut } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { auth } from './firebaseConfig'; // Importa o Firebase
+import { onAuthStateChanged, signOut } from 'firebase/auth'; // Ferramentas de Auth
+import Login from './Login'; // Importa a tela que acabamos de criar
 
-// Define a interface para os dados (ajuda o TypeScript)
 interface Workflow {
   id: number;
   name: string;
@@ -12,32 +14,48 @@ interface Workflow {
 }
 
 export default function App() {
+  // --- ESTADOS DO USUÁRIO ---
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // --- ESTADOS DO DASHBOARD ---
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [nome, setNome] = useState('');
   const [tarefas, setTarefas] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Busca os dados do backend
+  // 1. O Porteiro: Verifica se tem alguém logado ao abrir o site
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (usuarioAtual) => {
+      setUser(usuarioAtual);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Busca dados (Só roda se tiver usuário)
   const carregarDados = async () => {
+    if (!user) return; // Se não tiver logado, não busca nada
     try {
       const response = await axios.get('http://localhost:3000/workflows');
-      // Inverte a ordem para o mais recente aparecer primeiro
-      setWorkflows(response.data.reverse()); 
+      setWorkflows(response.data.reverse());
     } catch (error) {
       console.error('Erro ao buscar:', error);
     }
   };
 
+  // Carrega os dados quando o usuário loga
   useEffect(() => {
-    carregarDados();
-    // Atualiza sozinho a cada 5 segundos
-    const intervalo = setInterval(carregarDados, 5000);
-    return () => clearInterval(intervalo);
-  }, []);
+    if (user) {
+      carregarDados();
+      const intervalo = setInterval(carregarDados, 5000);
+      return () => clearInterval(intervalo);
+    }
+  }, [user]);
 
+  // --- FUNÇÕES DO DASHBOARD ---
   const criarAgente = async () => {
     if (!nome || !tarefas) return alert('Preencha tudo!');
-    
     setLoading(true);
     try {
       await axios.post('http://localhost:3000/workflows', {
@@ -64,7 +82,19 @@ export default function App() {
     }
   };
 
-  // Cálculos para os Cards do Topo
+  const fazerLogout = () => {
+    signOut(auth);
+  };
+
+  // --- RENDERIZAÇÃO CONDICIONAL ---
+
+  // 1. Se estiver verificando o login, mostra carregando
+  if (authLoading) return <div className="h-screen bg-slate-900 flex items-center justify-center text-white"><Loader2 className="animate-spin" size={40}/></div>;
+
+  // 2. Se NÃO tiver usuário, mostra a tela de Login
+  if (!user) return <Login />;
+
+  // 3. Se tiver usuário, mostra o Dashboard (Código original)
   const total = workflows.length;
   const concluidos = workflows.filter(w => w.status === 'CONCLUÍDO').length;
   const pendentes = workflows.filter(w => w.status === 'PENDENTE').length;
@@ -79,18 +109,27 @@ export default function App() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
               Nexus AI Dashboard
             </h1>
-            <p className="text-slate-400 mt-1">Gerencie seus agentes inteligentes</p>
+            <p className="text-slate-400 mt-1">Olá, {user.email}</p> {/* Mostra o email do usuário */}
           </div>
-          <button 
-            onClick={carregarDados}
-            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-full transition-all border border-slate-700"
-            title="Atualizar Lista"
-          >
-            <RefreshCw size={20} className="text-slate-300 hover:text-white hover:rotate-180 transition-transform duration-500" />
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={carregarDados}
+              className="p-2 bg-slate-800 hover:bg-slate-700 rounded-full transition-all border border-slate-700"
+              title="Atualizar Lista"
+            >
+              <RefreshCw size={20} className="text-slate-300 hover:text-white hover:rotate-180 transition-transform duration-500" />
+            </button>
+            <button 
+              onClick={fazerLogout}
+              className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-full transition-all border border-red-500/20"
+              title="Sair"
+            >
+              <LogOut size={20} className="text-red-400" />
+            </button>
+          </div>
         </header>
 
-        {/* ESTATÍSTICAS (KPIs) */}
+        {/* ESTATÍSTICAS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard title="Total de Agentes" value={total} icon={<Bot size={24} className="text-blue-400"/>} />
           <StatCard title="Processando" value={pendentes} icon={<Loader2 size={24} className="text-yellow-400 animate-spin"/>} />
@@ -99,7 +138,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* FORMULÁRIO (Esquerda) */}
+          {/* FORMULÁRIO */}
           <div className="lg:col-span-1">
             <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-2xl border border-slate-700 shadow-xl sticky top-8">
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -123,7 +162,7 @@ export default function App() {
                   <textarea
                     value={tarefas}
                     onChange={e => setTarefas(e.target.value)}
-                    placeholder="O que o agente deve fazer? (Ex: Resuma as notícias de hoje)"
+                    placeholder="O que o agente deve fazer?"
                     rows={4}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all resize-none text-white"
                   />
@@ -140,7 +179,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* LISTA DE AGENTES (Direita) */}
+          {/* LISTA DE AGENTES */}
           <div className="lg:col-span-2 space-y-4">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <Bot size={20} className="text-blue-400" /> Histórico de Execuções
@@ -156,8 +195,6 @@ export default function App() {
 
             {workflows.map(item => (
               <div key={item.id} className="group bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all shadow-lg hover:shadow-xl relative overflow-hidden">
-                
-                {/* Indicador Lateral Colorido */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1 ${
                   item.status === 'CONCLUÍDO' ? 'bg-green-500' : 
                   item.status === 'ERRO' ? 'bg-red-500' : 'bg-yellow-500'
@@ -180,13 +217,12 @@ export default function App() {
                   <button 
                     onClick={() => excluir(item.id)}
                     className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-slate-700/50 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Excluir Projeto"
+                    title="Excluir"
                   >
                     <Trash2 size={18} />
                   </button>
                 </div>
 
-                {/* ÁREA DE RESULTADO (MARKDOWN) */}
                 <div className="bg-slate-900/50 rounded-lg p-4 text-slate-300 text-sm border border-slate-700/50 pl-3 ml-1">
                   {item.status === 'PENDENTE' ? (
                     <div className="flex items-center gap-2 text-yellow-500/80 animate-pulse">
@@ -194,7 +230,6 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="prose prose-invert prose-sm max-w-none">
-                       {/* AQUI A MÁGICA DO MARKDOWN ACONTECE */}
                        <ReactMarkdown>{item.resultado}</ReactMarkdown>
                     </div>
                   )}
@@ -212,7 +247,6 @@ export default function App() {
   );
 }
 
-// Componente simples para os cards de estatística
 function StatCard({ title, value, icon }: { title: string, value: number, icon: any }) {
   return (
     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg flex items-center justify-between hover:border-slate-600 transition-colors">
