@@ -18,16 +18,15 @@ export class WorkflowsService {
       resultado: 'Iniciando processamento inteligente...',
     });
 
-    // Salva o status inicial
     const salvo = await this.workflowsRepository.save(workflow) as any;
     
-    // Chama o processamento em segundo plano
+    // Chama o processamento
     this.processarComHttpBruto(salvo.id, createWorkflowDto.steps);
     
     return salvo;
   }
 
-  // 2. O CÉREBRO (IA - MODO ROBUSTO COM LOOP)
+  // 2. O CÉREBRO (IA - COM AUTO-DETECÇÃO DE MODELO)
   async processarComHttpBruto(id: number, tarefas: string[]) {
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -36,30 +35,48 @@ export class WorkflowsService {
         return this.gravarErro(id, "Chave de API não configurada.");
     }
 
-    // 🔥 LISTA DE ELITE: Tenta todos esses nomes até um funcionar
-    const modelosParaTentar = [
-      "gemini-1.5-flash-latest", // Versão mais recente forçada
-      "gemini-1.5-flash",        // Nome padrão
-      "gemini-1.5-flash-001",    // Versão específica
-      "gemini-1.5-pro-latest"    // Backup mais inteligente
-    ];
+    // --- FASE 1: AUTO-DETECÇÃO (SHERLOCK HOLMES) ---
+    // Em vez de chutar o nome, perguntamos pro Google o que tem disponível
+    let modeloParaUsar = "gemini-1.5-flash"; // Chute inicial (caso a lista falhe)
 
-    let sucesso = false;
-    let ultimoErro = "";
-
-    const prompt = `Você é um assistente executivo focado e eficiente.
-    Tarefas: ${tarefas.join('. ')}.
-    
-    Instrução: Responda em Português do Brasil. Use Markdown (negrito, listas) para formatar bem a resposta.`;
-
-    // Loop de Tentativas
-    for (const modelo of modelosParaTentar) {
-      if (sucesso) break; // Se já funcionou, para de tentar
-
-      try {
-        console.log(`🚀 Tentando modelo: ${modelo}...`);
+    try {
+        console.log("🕵️ Perguntando ao Google quais modelos estão disponíveis...");
         
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`;
+        const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        const listResp = await fetch(listUrl);
+        const listData = await listResp.json();
+
+        if (listData.models) {
+            // Procura na lista oficial do Google um modelo que gere texto
+            // Prioridade: Flash > Pro > Qualquer outro Gemini
+            const modeloEncontrado = listData.models.find((m: any) => {
+                const metodos = m.supportedGenerationMethods || [];
+                const nome = m.name || "";
+                return metodos.includes("generateContent") && 
+                       (nome.includes("flash") || nome.includes("gemini-1.5") || nome.includes("gemini-pro"));
+            });
+
+            if (modeloEncontrado) {
+                // O Google devolve "models/gemini-1.5-flash", precisamos tirar o "models/"
+                modeloParaUsar = modeloEncontrado.name.replace("models/", "");
+                console.log(`🎯 MODELO DETECTADO E SELECIONADO: ${modeloParaUsar}`);
+            } else {
+                console.log("⚠️ Nenhum modelo específico encontrado. Usando padrão.");
+            }
+        }
+    } catch (e) {
+        console.log("⚠️ Erro na auto-detecção. Indo com o padrão.", e);
+    }
+
+    // --- FASE 2: EXECUÇÃO ---
+    const prompt = `Você é um assistente executivo focado.
+    Tarefas: ${tarefas.join('. ')}.
+    Instrução: Responda em Português do Brasil. Use Markdown.`;
+
+    try {
+        console.log(`🚀 Disparando IA com modelo: ${modeloParaUsar}...`);
+        
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modeloParaUsar}:generateContent?key=${apiKey}`;
 
         const response = await fetch(url, {
           method: 'POST',
@@ -72,12 +89,12 @@ export class WorkflowsService {
         const data = await response.json();
 
         if (data.error) {
-          throw new Error(`Google recusou ${modelo}: ${data.error.message}`);
+            throw new Error(`Google recusou (${modeloParaUsar}): ${data.error.message}`);
         }
 
         const textoFinal = data.candidates?.[0]?.content?.parts?.[0]?.text;
         
-        if (!textoFinal) throw new Error("IA retornou texto vazio.");
+        if (!textoFinal) throw new Error("IA retornou resposta vazia.");
 
         // SUCESSO!
         await this.workflowsRepository.update(id, {
@@ -85,18 +102,11 @@ export class WorkflowsService {
           resultado: textoFinal,
         });
         
-        sucesso = true;
-        console.log(`✅ SUCESSO com ${modelo}!`);
+        console.log(`✅ SUCESSO TOTAL! Agente ${id} finalizado.`);
 
-      } catch (erro: any) {
-        console.error(`❌ Falha no ${modelo}:`, erro.message);
-        ultimoErro = erro.message;
-      }
-    }
-
-    // Se depois de tentar os 4 nomes ainda der erro
-    if (!sucesso) {
-      await this.gravarErro(id, `Todas as tentativas falharam. Último erro: ${ultimoErro}`);
+    } catch (erro: any) {
+        console.error(`❌ ERRO NO AGENTE ${id}:`, erro.message);
+        await this.gravarErro(id, erro.message);
     }
   }
 
