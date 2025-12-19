@@ -1,21 +1,24 @@
-import { Controller, Post, Get, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Delete, Param } from '@nestjs/common';
 import { WorkflowsService } from './workflows.service';
 
 @Controller('workflows')
 export class WorkflowsController {
-  
-  // Injeta o Service atualizado
   constructor(private readonly workflowsService: WorkflowsService) {}
 
   @Post()
-  async criarWorkflow(@Body() corpoDaRequisicao: any) {
-    // Agora ele chama o Service que tem a lógica dos 5 segundos
-    return this.workflowsService.executeWorkflow(corpoDaRequisicao);
+  create(@Body() createWorkflowDto: any) {
+    // Agora chama o 'create' corretamente (antes era executeWorkflow)
+    return this.workflowsService.create(createWorkflowDto);
   }
 
   @Get()
-  async listarWorkflows() {
-    // Essa é a rota que estava faltando (por isso dava erro 404)
-    return this.workflowsService.listarTodos();
+  findAll() {
+    // Agora chama o 'findAll' corretamente (antes era listarTodos)
+    return this.workflowsService.findAll();
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.workflowsService.remove(+id);
   }
 }

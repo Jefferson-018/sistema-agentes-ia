@@ -1,116 +1,228 @@
-import { useState, useEffect } from 'react'
-import './App.css'
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Trash2, Plus, Bot, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
-function App() {
-  // Estados para armazenar os dados do formulário
-  const [nome, setNome] = useState('')
-  const [tarefas, setTarefas] = useState('')
-  
-  // Estados do sistema
-  const [status, setStatus] = useState('Sistema pronto.')
-  const [workflows, setWorkflows] = useState<any[]>([])
+// Define a interface para os dados (ajuda o TypeScript)
+interface Workflow {
+  id: number;
+  name: string;
+  status: string;
+  resultado: string;
+}
 
-  // Busca os dados assim que a tela abre (Automático)
-  useEffect(() => {
-    buscarDados()
-  }, [])
+export default function App() {
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [nome, setNome] = useState('');
+  const [tarefas, setTarefas] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  async function buscarDados() {
+  // Busca os dados do backend
+  const carregarDados = async () => {
     try {
-      const resposta = await fetch('http://localhost:3000/workflows')
-      const dados = await resposta.json()
+      const response = await axios.get('http://localhost:3000/workflows');
       // Inverte a ordem para o mais recente aparecer primeiro
-      setWorkflows(dados.reverse()) 
-    } catch (erro) {
-      setStatus('Erro ao carregar dados.')
+      setWorkflows(response.data.reverse()); 
+    } catch (error) {
+      console.error('Erro ao buscar:', error);
     }
-  }
+  };
 
-  async function criarWorkflow(e: React.FormEvent) {
-    e.preventDefault() // Não deixa a página recarregar sozinha
-    setStatus('Enviando pedido para a IA...')
+  useEffect(() => {
+    carregarDados();
+    // Atualiza sozinho a cada 5 segundos
+    const intervalo = setInterval(carregarDados, 5000);
+    return () => clearInterval(intervalo);
+  }, []);
 
+  const criarAgente = async () => {
+    if (!nome || !tarefas) return alert('Preencha tudo!');
+    
+    setLoading(true);
     try {
-      // 1. Prepara os dados (transforma o texto em lista)
-      const stepsArray = tarefas.split(',').map(item => item.trim())
-
-      // 2. Envia para o Backend (POST)
-      const resposta = await fetch('http://localhost:3000/workflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nome: nome,
-          steps: stepsArray
-        })
-      })
-
-      if (resposta.ok) {
-        setStatus('✅ Workflow criado com sucesso!')
-        setNome('')
-        setTarefas('')
-        buscarDados() // Atualiza a lista na hora
-      } else {
-        setStatus('❌ Erro ao criar.')
-      }
-    } catch (erro) {
-      console.error(erro)
-      setStatus('Erro de conexão.')
+      await axios.post('http://localhost:3000/workflows', {
+        name: nome,
+        steps: [tarefas]
+      });
+      setNome('');
+      setTarefas('');
+      await carregarDados();
+    } catch (error) {
+      alert('Erro ao criar');
+    } finally {
+      setLoading(false);
     }
-  }
+  };
+
+  const excluir = async (id: number) => {
+    if (!confirm('Tem certeza que deseja excluir?')) return;
+    try {
+      await axios.delete(`http://localhost:3000/workflows/${id}`);
+      carregarDados();
+    } catch (error) {
+      console.error('Erro ao excluir', error);
+    }
+  };
+
+  // Cálculos para os Cards do Topo
+  const total = workflows.length;
+  const concluidos = workflows.filter(w => w.status === 'CONCLUÍDO').length;
+  const pendentes = workflows.filter(w => w.status === 'PENDENTE').length;
 
   return (
-    <div className="container">
-      <header>
-        <h1>🤖 Central de Comando</h1>
-        <p className="status-bar">Status: {status}</p>
-      </header>
-      
-      {/* ÁREA DE CRIAÇÃO (NOVO) */}
-      <section className="card form-section">
-        <h2>Novo Pedido</h2>
-        <form onSubmit={criarWorkflow}>
-          <input 
-            type="text" 
-            placeholder="Nome do Projeto (ex: Resumo Diário)" 
-            value={nome}
-            onChange={e => setNome(e.target.value)}
-            required
-          />
-          
-          <textarea 
-            placeholder="Digite as tarefas separadas por vírgula (ex: Ler email, Resumir texto, Traduzir)" 
-            value={tarefas}
-            onChange={e => setTarefas(e.target.value)}
-            required
-          />
-          
-          <button type="submit">🚀 Disparar Agente</button>
-        </form>
-      </section>
-
-      <hr />
-
-      {/* LISTA DE RESULTADOS */}
-      <main>
-        <h2>Histórico de Execuções</h2>
-        <button onClick={buscarDados} className="btn-refresh">🔄 Atualizar Lista</button>
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         
-        {workflows.map(item => (
-          <div key={item.id} className="card result-card">
-            <div className="card-header">
-              <h3>{item.nome}</h3>
-              <span className={`badge ${item.status}`}>{item.status}</span>
-            </div>
-            <p><strong>Tarefas:</strong> {item.steps.join(' → ')}</p>
-            <div className="box-resultado">
-              <strong>Resultado da IA:</strong>
-              <p>{item.resultado || 'Processando...'}</p>
+        {/* CABEÇALHO */}
+        <header className="flex justify-between items-center border-b border-slate-700 pb-6">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              Nexus AI Dashboard
+            </h1>
+            <p className="text-slate-400 mt-1">Gerencie seus agentes inteligentes</p>
+          </div>
+          <button 
+            onClick={carregarDados}
+            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-full transition-all border border-slate-700"
+            title="Atualizar Lista"
+          >
+            <RefreshCw size={20} className="text-slate-300 hover:text-white hover:rotate-180 transition-transform duration-500" />
+          </button>
+        </header>
+
+        {/* ESTATÍSTICAS (KPIs) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard title="Total de Agentes" value={total} icon={<Bot size={24} className="text-blue-400"/>} />
+          <StatCard title="Processando" value={pendentes} icon={<Loader2 size={24} className="text-yellow-400 animate-spin"/>} />
+          <StatCard title="Concluídos" value={concluidos} icon={<CheckCircle size={24} className="text-green-400"/>} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* FORMULÁRIO (Esquerda) */}
+          <div className="lg:col-span-1">
+            <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-2xl border border-slate-700 shadow-xl sticky top-8">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Plus size={20} className="text-purple-400" /> Novo Agente
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Nome do Projeto</label>
+                  <input
+                    type="text"
+                    value={nome}
+                    onChange={e => setNome(e.target.value)}
+                    placeholder="Ex: Analista Financeiro"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all text-white"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Missão (Prompt)</label>
+                  <textarea
+                    value={tarefas}
+                    onChange={e => setTarefas(e.target.value)}
+                    placeholder="O que o agente deve fazer? (Ex: Resuma as notícias de hoje)"
+                    rows={4}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all resize-none text-white"
+                  />
+                </div>
+
+                <button
+                  onClick={criarAgente}
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium p-3 rounded-lg transition-all flex justify-center items-center gap-2 disabled:opacity-50 shadow-lg shadow-purple-900/20"
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : 'Disparar Agente IA'}
+                </button>
+              </div>
             </div>
           </div>
-        ))}
-      </main>
+
+          {/* LISTA DE AGENTES (Direita) */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Bot size={20} className="text-blue-400" /> Histórico de Execuções
+            </h2>
+
+            {workflows.length === 0 && (
+              <div className="text-center p-12 text-slate-500 bg-slate-800/30 rounded-2xl border border-slate-700 border-dashed">
+                <Bot size={48} className="mx-auto mb-4 opacity-20" />
+                <p>Nenhum agente criado ainda.</p>
+                <p className="text-sm">Use o formulário ao lado para começar.</p>
+              </div>
+            )}
+
+            {workflows.map(item => (
+              <div key={item.id} className="group bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-slate-600 transition-all shadow-lg hover:shadow-xl relative overflow-hidden">
+                
+                {/* Indicador Lateral Colorido */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                  item.status === 'CONCLUÍDO' ? 'bg-green-500' : 
+                  item.status === 'ERRO' ? 'bg-red-500' : 'bg-yellow-500'
+                }`}></div>
+
+                <div className="flex justify-between items-start mb-3 pl-3">
+                  <div>
+                    <h3 className="font-bold text-lg text-white">{item.name}</h3>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-flex items-center gap-1 ${
+                      item.status === 'CONCLUÍDO' ? 'bg-green-500/20 text-green-300' : 
+                      item.status === 'ERRO' ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300'
+                    }`}>
+                      {item.status === 'CONCLUÍDO' && <CheckCircle size={12}/>}
+                      {item.status === 'ERRO' && <AlertCircle size={12}/>}
+                      {item.status === 'PENDENTE' && <Loader2 size={12} className="animate-spin"/>}
+                      {item.status}
+                    </span>
+                  </div>
+                  
+                  <button 
+                    onClick={() => excluir(item.id)}
+                    className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-slate-700/50 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Excluir Projeto"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+
+                {/* ÁREA DE RESULTADO (MARKDOWN) */}
+                <div className="bg-slate-900/50 rounded-lg p-4 text-slate-300 text-sm border border-slate-700/50 pl-3 ml-1">
+                  {item.status === 'PENDENTE' ? (
+                    <div className="flex items-center gap-2 text-yellow-500/80 animate-pulse">
+                      <Bot size={16} /> Processando sua solicitação...
+                    </div>
+                  ) : (
+                    <div className="prose prose-invert prose-sm max-w-none">
+                       {/* AQUI A MÁGICA DO MARKDOWN ACONTECE */}
+                       <ReactMarkdown>{item.resultado}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-2 text-[10px] text-slate-600 flex justify-end">
+                  ID: {item.id}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente simples para os cards de estatística
+function StatCard({ title, value, icon }: { title: string, value: number, icon: any }) {
+  return (
+    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg flex items-center justify-between hover:border-slate-600 transition-colors">
+      <div>
+        <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">{title}</p>
+        <p className="text-3xl font-bold text-white mt-1">{value}</p>
+      </div>
+      <div className="bg-slate-700/50 p-3 rounded-lg ring-1 ring-slate-600">
+        {icon}
+      </div>
     </div>
   )
 }
-
-export default App

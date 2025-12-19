@@ -1,25 +1,27 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config'; // Importa o módulo de config
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { WorkflowsModule } from './workflows/workflows.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { Workflow } from './workflows/entities/workflow.entity';
 
 @Module({
   imports: [
-    // 1. Carrega o .env (Segurança em primeiro lugar)
+    // A MUDANÇA É AQUI: Adicione { isGlobal: true }
     ConfigModule.forRoot({
-      isGlobal: true, // Disponível no projeto todo
-    }),
+      isGlobal: true, 
+    }), 
     
-    // 2. Banco de Dados
+    WorkflowsModule,
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: 'database.sqlite',
       entities: [Workflow],
       synchronize: true,
     }),
-    
-    WorkflowsModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
