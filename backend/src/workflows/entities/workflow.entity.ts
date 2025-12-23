@@ -8,7 +8,8 @@ export class Workflow {
   @Column()
   name: string;
 
-  @Column('simple-json') // SQLite e Postgres aceitam simple-json para listas
+  // MUDANÇA AQUI: Adicionamos { nullable: true } para não travar com dados antigos
+  @Column('simple-json', { nullable: true }) 
   steps: string[];
 
   @Column({ default: 'PENDENTE' })
@@ -17,8 +18,9 @@ export class Workflow {
   @Column({ type: 'text', nullable: true })
   resultado: string;
 
-  // --- AQUI ESTAVA O ERRO ---
-  // O Postgres prefere 'timestamp' em vez de 'datetime'
   @CreateDateColumn({ type: 'timestamp' }) 
   dataCriacao: Date;
+
+  @Column({ nullable: true }) 
+  userId: string;
 }
