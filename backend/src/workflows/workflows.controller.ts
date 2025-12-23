@@ -9,12 +9,26 @@ export class WorkflowsController {
 
   @Post()
   create(@Body() createWorkflowDto: CreateWorkflowDto) {
-    // Recebe o corpo completo (que agora inclui o userId vindo do front)
     return this.workflowsService.create(createWorkflowDto);
   }
 
+  // 👇 NOVA ROTA: O CHAT 👇
+  @Post(':id/chat')
+  async chat(@Param('id') id: string, @Body() body: { message: string }) {
+    // 1. Pega o agente atual
+    const workflow = await this.workflowsService.findOne(+id);
+    
+    // 2. Muda status para processando para aparecer o loading no front
+    await this.workflowsService.update(+id, { status: 'PENDENTE' });
+    
+    // 3. Manda a nova mensagem para a IA processar (com histórico)
+    // O service vai rodar em segundo plano sem travar a resposta aqui
+    this.workflowsService.processarComHttpBruto(+id, [body.message]);
+    
+    return { message: "Mensagem enviada para a IA!" };
+  }
+
   @Get()
-  // O @Query('userId') pega o filtro ?userId=... da URL
   findAll(@Query('userId') userId: string) {
     return this.workflowsService.findAll(userId);
   }

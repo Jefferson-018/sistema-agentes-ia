@@ -8,8 +8,7 @@ export class Workflow {
   @Column()
   name: string;
 
-  // MUDANÇA AQUI: Adicionamos { nullable: true } para não travar com dados antigos
-  @Column('simple-json', { nullable: true }) 
+  @Column('simple-json', { nullable: true })
   steps: string[];
 
   @Column({ default: 'PENDENTE' })
@@ -17,6 +16,10 @@ export class Workflow {
 
   @Column({ type: 'text', nullable: true })
   resultado: string;
+
+  // 👇 NOVA COLUNA: AQUI VAI FICAR O BATE-PAPO 👇
+  @Column('simple-json', { nullable: true })
+  messages: any[];
 
   @CreateDateColumn({ type: 'timestamp' }) 
   dataCriacao: Date;
