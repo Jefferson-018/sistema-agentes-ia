@@ -19,9 +19,7 @@ export default function App() {
   const [tarefas, setTarefas] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // --- NOVIDADE: Estado para guardar o texto do chat de cada card ---
   const [chatInputs, setChatInputs] = useState<{ [key: number]: string }>({});
-  
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
 
   const carregarDados = async () => {
@@ -61,28 +59,22 @@ export default function App() {
     }
   };
 
-  // --- NOVIDADE: Função que manda a mensagem pro Backend ---
   const enviarResposta = async (id: number) => {
     const mensagem = chatInputs[id];
     if (!mensagem) return;
 
     try {
-      // 1. Limpa o campo de texto visualmente
       setChatInputs(prev => ({ ...prev, [id]: '' }));
-      
-      // 2. Faz o card parecer que está carregando na hora (Feedback instantâneo)
       setWorkflows(prev => prev.map(w => w.id === id ? { ...w, status: 'PENDENTE' } : w));
 
-      // 3. Manda para a Rota de Chat que criamos no Backend
       await axios.post(`https://sistema-agentes-ia-3es4.onrender.com/workflows/${id}/chat`, {
         message: mensagem
       });
 
-      // 4. Recarrega os dados (O backend vai processar e atualizar o texto)
       await carregarDados();
     } catch (error) {
       alert('Erro ao enviar mensagem');
-      carregarDados(); // Volta ao normal se der erro
+      carregarDados();
     }
   };
 
@@ -110,6 +102,9 @@ export default function App() {
     );
   }
 
+  const pendentes = workflows.filter(w => w.status === 'PENDENTE').length;
+  const concluidos = workflows.filter(w => w.status === 'CONCLUÍDO').length;
+
   return (
     <>
       <SignedOut>
@@ -133,7 +128,6 @@ export default function App() {
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-8">
           <div className="max-w-6xl mx-auto space-y-8">
             
-            {/* CABEÇALHO */}
             <header className="flex flex-col md:flex-row justify-between items-center border-b border-slate-800 pb-6 gap-4">
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent flex items-center gap-3">
@@ -156,16 +150,29 @@ export default function App() {
               </div>
             </header>
 
-            {/* ESTATÍSTICAS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Total de Agentes" value={workflows.length} icon={<Bot size={24} className="text-blue-400"/>} color="blue" />
-              <StatCard title="Processando" value={workflows.filter(w => w.status === 'PENDENTE').length} icon={<Loader2 size={24} className="text-yellow-400 animate-spin"/>} color="yellow" />
-              <StatCard title="Concluídos" value={workflows.filter(w => w.status === 'CONCLUÍDO').length} icon={<CheckCircle size={24} className="text-green-400"/>} color="green" />
+              <StatCard 
+                title="Total de Agentes" 
+                value={workflows.length} 
+                icon={<Bot size={24} className="text-blue-400"/>} 
+                color="blue" 
+              />
+              <StatCard 
+                title="Processando" 
+                value={pendentes} 
+                icon={<Loader2 size={24} className={`text-yellow-400 ${pendentes > 0 ? 'animate-spin' : ''}`}/>} 
+                color="yellow" 
+              />
+              <StatCard 
+                title="Concluídos" 
+                value={concluidos} 
+                icon={<CheckCircle size={24} className="text-green-400"/>} 
+                color="green" 
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               
-              {/* FORMULÁRIO */}
               <div className="lg:col-span-1">
                 <div className="bg-slate-900/50 backdrop-blur-md p-6 rounded-2xl border border-slate-800 shadow-2xl sticky top-8">
                   <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-white">
@@ -206,7 +213,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* LISTA DE AGENTES */}
               <div className="lg:col-span-2 space-y-6">
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-white">
                   <Bot size={20} className="text-blue-400" /> Meus Agentes
@@ -279,8 +285,6 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* --- NOVIDADE: ÁREA DE CHAT --- */}
-                    {/* Só aparece se o agente já terminou a tarefa anterior */}
                     {item.status === 'CONCLUÍDO' && (
                       <div className="mt-4 pl-1 flex gap-2 animate-in slide-in-from-top-2">
                         <input
@@ -288,13 +292,15 @@ export default function App() {
                           value={chatInputs[item.id] || ''}
                           onChange={(e) => setChatInputs(prev => ({...prev, [item.id]: e.target.value}))}
                           onKeyDown={(e) => { if (e.key === 'Enter') enviarResposta(item.id); }}
-                          placeholder="Fale com este agente... (Ex: 'Melhore o resumo' ou 'Me explique melhor')"
+                          placeholder="Fale com este agente... (Ex: 'Melhore o resumo')"
                           className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
                         />
                         <button
                           onClick={() => enviarResposta(item.id)}
                           disabled={!chatInputs[item.id]}
                           className="bg-purple-600 hover:bg-purple-500 text-white px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center hover:scale-105 active:scale-95 shadow-lg shadow-purple-900/20"
+                          title="Enviar Mensagem"
+                          aria-label="Enviar Mensagem"
                         >
                           <Send size={18} />
                         </button>
