@@ -27,7 +27,7 @@ export class WorkflowsService {
     return salvo;
   }
 
-  // 2. O CÉREBRO (IA COM MEMÓRIA)
+  // 2. O CÉREBRO (IA COM MEMÓRIA E DATA ATUALIZADA)
   async processarComHttpBruto(id: number, tarefas: string[]) {
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -43,11 +43,17 @@ export class WorkflowsService {
     // Se já tiver mensagens, usa elas. Se for null, cria array vazio.
     let historico = agente.messages || [];
 
+    // 👇 O PULO DO GATO: DATA AUTOMÁTICA 👇
+    // Pega a data de hoje (ex: "segunda-feira, 5 de janeiro de 2026")
+    const hoje = new Date().toLocaleDateString('pt-BR', { dateStyle: 'full' });
+    
+    // Monta o texto avisando a IA que dia é hoje antes da tarefa do usuário
+    const promptComData = `[Data do Sistema: ${hoje}]\n\n${tarefas.join('\n')}`;
+
     // B. ADICIONA A NOVA MENSAGEM DO USUÁRIO
-    // O prompt inicial também vira uma mensagem de usuário
     historico.push({
         role: "user",
-        parts: [{ text: tarefas.join('\n') }]
+        parts: [{ text: promptComData }]
     });
 
     // --- FASE 1: AUTO-DETECÇÃO (Mantida igual) ---
@@ -74,7 +80,7 @@ export class WorkflowsService {
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // AQUI ESTÁ A MÁGICA: Enviamos todo o histórico, não só a última
+          // AQUI ESTÁ A MÁGICA: Enviamos todo o histórico
           body: JSON.stringify({ contents: historico })
         });
 
